@@ -44,15 +44,17 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
 }
 
 
-// GPU kernel which access an vector with a strdie pattern
+// GPU kernel which access an vector with a stride pattern
 __global__ void strided_kernel(int* vec, int size, int stride)
 {
-    //ToDo: Implement the strided kernel vec[i] = vec[i] + 1 
+    //ToDo: Implement the strided kernel vec[i] = vec[i] + 1
+    int i = ((blockIdx.x * blockDim.x + threadIdx.x) * stride) % size;
+    vec[i] = vec[i] + 1;
 }
 
 
 // Execute a loop of different strides accessing a vector as GPU kernels.
-// Meassure the spent time and print out the reached bandwidth in GB/s.
+// Measure the spent time and print out the reached bandwidth in GB/s.
 void gpu_stride_loop(int* device_vec, int size)
 {
     // Define some helper values
@@ -60,7 +62,7 @@ void gpu_stride_loop(int* device_vec, int size)
     const int blockSize = 256;
     float ms;
 
-    // Init CUDA events used to meassure timings 
+    // Init CUDA events used to measure timings 
     cudaEvent_t startEvent, stopEvent;
     gpuErrCheck(cudaEventCreate(&startEvent));
     gpuErrCheck(cudaEventCreate(&stopEvent));
@@ -77,7 +79,19 @@ void gpu_stride_loop(int* device_vec, int size)
     // ToDo: Implement the strided loop analogue the CPU implementation
     //       Calculate and print the used Bandwidth
     //       No need to reset the device_vec to 1, we are not interessted in the result
+    for (int stride = 1; stride <= 32; stride++) {
+        gpuErrCheck(cudaEventCreate(&startEvent));
+        gpuErrCheck(cudaEventCreate(&stopEvent));
 
+        gpuErrCheck(cudaEventRecord(startEvent, 0));
+        strided_kernel << <size / blockSize, blockSize >> > (device_vec, size, stride);
+        gpuErrCheck(cudaEventRecord(stopEvent, 0));
+        gpuErrCheck(cudaEventSynchronize(stopEvent));
+
+        gpuErrCheck(cudaEventElapsedTime(&ms, startEvent, stopEvent));
+        cout << "GPU stride size " << stride << " kernel: " << processedMB / ms << "GB/s bandwidth" << endl;
+    }
+    
 }
 
 
